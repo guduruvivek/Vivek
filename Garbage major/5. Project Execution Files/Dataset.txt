@@ -1,0 +1,13 @@
+ Volume in drive C is OS
+ Volume Serial Number is AAF6-F74C
+
+ Directory of C:\Users\soumy\OneDrive\Desktop\saarika\5. Project Execution Files
+
+28-11-2024  17:38    <DIR>          .
+26-11-2024  18:39    <DIR>          ..
+28-11-2024  14:43    <DIR>          Dataset
+28-11-2024  17:38                 0 Dataset.txt
+28-11-2024  16:20       141,155,336 fine_tuned_ann_model.h5
+26-11-2024  21:21             4,075 garbage2.txt
+               3 File(s)    141,159,411 bytes
+               3 Dir(s)  352,055,025,664 bytes free

@@ -1,0 +1,112 @@
+# Import necessary libraries  
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import VGG16
+import numpy as np
+
+# Define paths
+data_dir = r"C:\Users\soumy\OneDrive\Desktop\Garbage Classification\Dataset"
+
+# Initialize ImageDataGenerator with split for training and validation
+datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)  # 80% train, 20% validation
+
+# Training data generator
+train_generator = datagen.flow_from_directory(
+    data_dir,
+    target_size=(128, 128),
+    batch_size=32,
+    class_mode='categorical',
+    subset='training'
+)
+
+# Validation data generator
+validation_generator = datagen.flow_from_directory(
+    data_dir,
+    target_size=(128, 128),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'
+)
+
+# Load the pre-trained VGG16 model without the top (fully connected) layers
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(128, 128, 3))
+
+# Freeze all layers in the base model initially
+for layer in base_model.layers:
+    layer.trainable = False
+
+# Adding custom ANN layers for fine-tuning
+x = base_model.output
+x = Flatten()(x)
+x = Dense(256, activation='relu', kernel_initializer='he_uniform')(x)
+x = Dropout(0.5)(x)
+x = Dense(128, activation='relu', kernel_initializer='he_uniform')(x)
+x = Dropout(0.5)(x)
+output = Dense(5, activation='softmax')(x)  # Assuming 5 classes for garbage classification
+
+# Create the final model
+model = Model(inputs=base_model.input, outputs=output)
+model.summary()
+
+# Compile the model
+model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics=['accuracy'])
+
+# Calculate steps per epoch based on available samples
+steps_per_epoch = min(train_generator.samples // train_generator.batch_size, 59)
+validation_steps = min(validation_generator.samples // validation_generator.batch_size, 15)
+
+# Train the model with frozen layers
+initial_epochs = 10
+model.fit(
+    train_generator,
+    steps_per_epoch=steps_per_epoch,
+    validation_data=validation_generator,
+    validation_steps=validation_steps,
+    epochs=initial_epochs
+)
+
+# Unfreeze the last few layers of the base model for fine-tuning
+for layer in base_model.layers[-4:]:  # Adjust the number of layers to unfreeze
+    layer.trainable = True
+
+# Re-compile the model with a lower learning rate for fine-tuning
+model.compile(optimizer=Adam(learning_rate=1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Fine-tune the model
+fine_tune_epochs = 10
+total_epochs = initial_epochs + fine_tune_epochs
+model.fit(
+    train_generator,
+    steps_per_epoch=steps_per_epoch,
+    validation_data=validation_generator,
+    validation_steps=validation_steps,
+    epochs=total_epochs,
+    initial_epoch=initial_epochs
+)
+
+# Save the fine-tuned model
+model.save('fine_tuned_ann_model.h5')
+
+# Load and preprocess a test image
+img_path = r"C:\Users\soumy\OneDrive\Desktop\Garbage Classification\Dataset\glass\glass1.jpg"
+img = load_img(img_path, target_size=(128, 128))
+x = img_to_array(img) / 255.0  # Normalize the image as in training
+x = np.expand_dims(x, axis=0)  # Add batch dimension
+
+# Predict the class
+predictions = model.predict(x)
+print("Raw Predictions (Probabilities):", predictions)
+
+# Get the class labels dynamically from train_generator.class_indices
+class_labels = [k for k, v in sorted(train_generator.class_indices.items(), key=lambda item: item[1])]
+
+# Display the probability for each class
+for idx, class_name in enumerate(class_labels):
+    print(f"Class: {class_name}, Probability: {predictions[0][idx]:.4f}")
+
+# Get the predicted class with the highest probability
+predicted_index = np.argmax(predictions, axis=1)[0]
+predicted_class = class_labels[predicted_index]
+print("\nPredicted Class:", predicted_class)
